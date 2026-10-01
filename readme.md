@@ -19,7 +19,7 @@
 
 ## 📌 Resumen Ejecutivo
 
-Esta investigación documenta el análisis forense de una intrusión simulada del grupo APT **Volt Typhoon**, utilizando **Splunk SIEM** para threat hunting y respuesta a incidentes.
+Esta investigación documenta un laboratorio de detección sobre dataset de campaña APT: construcción de consultas SPL y mapeo de 18+ técnicas a MITRE ATT&CK, con documentación de IOCs.
 
 ### 🎯 Objetivos
 - [x] Identificar punto de entrada inicial (Initial Access)

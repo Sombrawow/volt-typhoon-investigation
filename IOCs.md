@@ -1,116 +1,95 @@
-# 🔑 Indicators of Compromise (IOCs): Volt Typhoon
+# 🎯 Indicadores de compromiso (IOCs)
 
-<div align="center">
+[⬅️ README](./README.md) · [📅 Timeline](./TIMELINE.md) · [🗺️ MITRE](./MITRE_MAPPING.md)
 
-**Lista Completa de IOCs Identificados Durante la Investigación**
-
-![IOCs](https://img.shields.io/badge/Total%20IOCs-25+-red)
-![Last Updated](https://img.shields.io/badge/Updated-2024--03--26-blue)
-![Confidence](https://img.shields.io/badge/Confidence-High-green)
-
-[📋 Reporte](./INCIDENT_REPORT.md) | [📅 Timeline](./TIMELINE.md) | [🗺️ MITRE](./MITRE_MAPPING.md)
-
-</div>
+> ⚠️ **Entorno de laboratorio.** Todos los indicadores proceden de la room "Volt Typhoon" de TryHackMe. Sirven para practicar detección; no deben usarse para bloquear tráfico real. Las IPs `192.168.1.x` son direcciones privadas del laboratorio.
 
 ---
 
-## ⚠️ Advertencia de Uso
+## 👤 Cuentas
 
-> 🔒 **Estos IOCs son de un ejercicio educativo (TryHackMe)**.  
-> 🎯 **Úsalos para**: Aprender, practicar detección, y construir reglas de prueba.  
-> ❌ **No los uses para**: Bloquear tráfico real sin validación contextual.  
-> ✅ **Adapta siempre**: Los IOCs de APTs reales evolucionan; usa patrones, no solo valores estáticos.
+| Cuenta | Tipo | Evidencia |
+|---|---|---|
+| `CTRL-ACC\dean-admin` | Cuenta de dominio comprometida | Cambio de contraseña en ADSS (24/03 11:10:22); ejecuta todas las acciones exclusivas del atacante |
+| `voltyp-admin` | Cuenta creada por el atacante | `wmic useraccount create` (24/03 11:11:12) + inscripción, contraseña, pregunta de seguridad y MFA en ADSS |
 
----
+## 🔑 Credenciales expuestas en los comandos
 
-## 📊 Resumen Ejecutivo de IOCs
+| Valor | Contexto | Acción de respuesta |
+|---|---|---|
+| `as&9ha2e$#&@n22n(` | Contraseña inicial de `voltyp-admin` | Deshabilitar la cuenta |
+| `uNcr4cK4b1e` | Contraseña de `dean-admin` pasada a `wmic /user:` | Rotar; asumir comprometida |
+| `d5ag0nm@5t3r` | Contraseña del archivo `cisco-up.7z` | Permite descifrar el archivo para valorar el alcance |
 
-| Categoría | Cantidad | Ejemplo Clave |
-|-----------|----------|--------------|
-| 👤 Cuentas Comprometidas | 3 | `dean-admin`, `voltyp-admin` |
-| 📁 Archivos Maliciosos | 5 | `temp.dit`, `cl64.gif` |
-| 💻 Comandos Ofensivos | 8+ | `ntdsutil`, `wevtutil cl` |
-| 🌐 Indicadores de Red | 3 | `10.2.30.1:8443` |
-| 🔑 Registry Keys | 4+ | `HKLM\...\SystemInformation` |
-| 🛠️ Herramientas Usadas | 6 | Mimikatz, 7z, netsh |
+> El repositorio anterior trataba `d5ag0nm@5t3r` como una cuenta de usuario. Es la contraseña del archivo comprimido, no una cuenta.
 
 ---
 
-## 👤 Cuentas Comprometidas
+## 📁 Ficheros y rutas
 
-| Cuenta | Tipo | Contexto del Compromiso | Detección Sugerida |
-|--------|------|------------------------|-------------------|
-| `dean-admin` | Usuario privilegiado | Password reset vía ADSelfService Plus explotado (T1190) | Alertar sobre password resets en apps web fuera de proceso HR |
-| `voltyp-admin` | Backdoor local | Creada por atacante con privilegios de administrador (T1136.001) | Alertar sobre creación de cuentas con "admin" no autorizadas |
-| `d5ag0nm@5t3r` | Backdoor ofuscada | Nombre en leetspeak para evadir detección (T1036.003) | Detectar cuentas con números/caracteres especiales en nombres |
+| Artefacto | Ruta / host | Qué es |
+|---|---|---|
+| `temp.dit` | `C:\Windows\Temp\tmp\` (host según el log: `.153`; el `xcopy` posterior la trata como ruta local de `webserver-01`); copiado a `C:\inetpub\wwwroot\` en `webserver-01` | Destino IFM del volcado del NTDS |
+| `cisco-up.7z` / `cisco-up.7z.*` | `C:\inetpub\wwwroot\` en `webserver-01` | `temp.dit` comprimido y cifrado, en volúmenes de 100 MB (`.001`, `.002`…) |
+| `cl64.gif` | `C:\inetpub\wwwroot\` en `webserver-01` | `cisco-up.7z` renombrado |
+| `ntuser.ini` | `C:\Windows\Temp\` (host no determinado) | Web shell codificado en base64 antes de decodificar |
+| `iisstart.aspx` | `C:\Windows\Temp\` (host no determinado) | Web shell decodificado |
+| `AuditReport.jspx` | `C:\inetpub\wwwroot\` en `server-02` | El mismo web shell desplegado |
+| `mimikatz.exe` | `C:\Temp\db2\` | Herramienta de extracción de credenciales |
+| `lsass.dmp` | Desconocida | Volcado de LSASS procesado por mimikatz (creación no observada) |
+| `2022.csv`, `2023.csv`, `2024.csv` | `C:\Windows\Temp\faudit\` | Copias de `C:\ProgramData\FinanceBackup\` |
 
-### 🔍 Query Splunk para detectar cuentas sospechosas:
-```splunk
-index="main" EventID=4720 OR EventID=4732
-| search user="*admin*" OR user="*[0-9]*" OR user="*[@$]*"
-```
-### 🔍 Query Splunk para detectar archivos sospechosos:
-```splunk
-index="main" sourcetype="sysmon" EventID=11
-| search file_name="*.aspx" OR file_name="*.jspx" OR file_name="*.dit"
-| search file_path="*wwwroot*" OR file_path="*Temp*"
-```
-### 🔍 Query Splunk para detectar comandos sospechosos:
-```splunk
-index="main" sourcetype="cmd" OR "powershell"
-| search "ntdsutil" OR "mimikatz" OR "wevtutil cl" OR "portproxy" OR "Invoke-WebRequest"
-```
-### 🔍 Query Splunk para detectar tráfico sospechoso:
-```splunk
-index="main" sourcetype="proxy" OR "firewall"
-| search dest_ip="10.2.30.1" OR dest_port="8443" OR uri="*voltyp.com*"
-```
-### 🔍 Query Splunk para detectar consultas de registro sospechosas:
-```splunk
-index="main"
-| search registry_path="*SystemInformation*" OR registry_path="*OpenSSH*" OR registry_path="*PuTTY*"
-```
-### 📁 Archivos Maliciosos
+**Directorios de trabajo del atacante** (patrón repetido): `C:\Windows\Temp\tmp`, `C:\Temp\db2`, `C:\Windows\Temp\faudit`.
 
-- iisstart.aspx
-C:\inetpub\wwwroot\
-Web Shell (.aspx)
-Persistencia y ejecución remota (T1505.003)
+**Registro**: borrado del valor `MRU0` (ruta oculta tras `$registryPath`; inferida: `HKCU\Software\Microsoft\Terminal Server Client\Default`, ubicación habitual del MRU de RDP); claves de `OpenSSH`, `realvnc` y `putty` consultadas.
 
-- AuditReport.jspx
-C:\inetpub\wwwroot\ (server-02)
-Web Shell (.jspx)
-Persistencia con masquerading (T1036.008)
+---
 
-- temp.dit
-C:\Windows\Temp\
-NTDS Dump
-Extracción de credenciales de dominio (T1003.003)
+## 🌐 Red
 
-- cisco-up.7z → cl64.gif
-\\webserver-01\c$\inetpub\wwwroot\
-Archivo ofuscado
-Preparación para exfiltración (T1036.008)
+> Indicadores de red *defanged* (`[.]`, `hxxp`) para evitar que se conviertan en enlaces activos. En los comandos citados en el resto del repositorio se mantienen literales, porque son evidencia.
 
-- mimikatz.exe
-C:\Temp\db2\
-Herramienta ofensiva
-Dump de credenciales LSASS (T1003.001)
+| Indicador | Tipo | Contexto |
+|---|---|---|
+| `voltyp[.]com` | Dominio | Descarga de mimikatz |
+| `hxxp://voltyp[.]com/3/tlz/mimikatz.exe` | URL | Ídem |
+| `10.2.30[.]1:8443` | IP:puerto | Destino del `netsh portproxy` (`connectaddress`/`connectport`) |
+| `0.0.0.0:50100` en `server-01` | Puerto en escucha | Lado local del `portproxy` |
 
-### 📋 Checklist de Respuesta Rápida
-✅ [ ] Rotar credenciales de dean-admin y eliminar cuentas backdoor
-✅ [ ] Eliminar web shells: iisstart.aspx, AuditReport.jspx
-✅ [ ] Buscar y eliminar temp.dit, cl64.gif, mimikatz.exe en todos los hosts
-✅ [ ] Revisar configuraciones de netsh portproxy en todos los servidores
-✅ [ ] Restaurar logs desde backups/SIEM para análisis forense completo
-✅ [ ] Parchear ADSelfService Plus inmediatamente
-✅ [ ] Implementar detección para los queries de Splunk proporcionados
-✅ [ ] Auditar todas las cuentas con privilegios elevados
+`10.2.30[.]1` es una dirección privada (RFC 1918): la acción de respuesta es identificar y aislar ese host, no bloquearlo como IP externa.
 
-### 🔄 Cómo Actualizar Estos IOCs
+### Hosts internos implicados
 
-- Valida en tu entorno: No bloquees ciegamente; prueba en modo "alert-only" primero
-- Contextualiza: Adapta IPs, rutas, y nombres de usuario a tu infraestructura
-- Automatiza: Convierte estos IOCs en reglas de SIEM/EDR para detección proactiva
-- Comparte: Contribuye a comunidades como MISP, OTX, o GitHub con IOCs anonimizados
-- Revisa: Los APTs evolucionan; actualiza tus IOCs trimestralmente o tras nuevos informes
+| Host | Papel |
+|---|---|
+| `192.168.1.153` | Probable controlador de dominio (ejecuta `ntdsutil ifm` localmente; ver matiz en TIMELINE, Fase 3); origen del movimiento lateral del 25/03 |
+| `192.168.1.133` | Host donde se crea `voltyp-admin` |
+| `192.168.1.129`, `192.168.1.184` | Origen de comandos `/node:` del 26/03 y 29/03 |
+| `webserver-01` | Staging del NTDS |
+| `server-01` | Túnel `portproxy` |
+| `server-02` | Web shell `AuditReport.jspx` |
+
+### Indicadores descartados
+
+| Indicador | Motivo |
+|---|---|
+| `192.168.1.134` | Usada también por siete cuentas legítimas en ADSS. No sirve como IOC aislado. |
+| `calc.exe`, `notepad.exe` | Ejecutados también por cuentas legítimas. |
+
+---
+
+## 🛠️ Herramientas y LOLBins
+
+`wmic`, `ntdsutil`, `xcopy`, `7z`, `certutil`, `netsh`, `wevtutil`, `reg`, PowerShell (`Invoke-WebRequest`, `Copy-Item`, `Remove-ItemProperty`) y `mimikatz`.
+
+---
+
+## ✅ Checklist de respuesta
+
+- [ ] Deshabilitar `voltyp-admin` y revisar sus registros de MFA y preguntas de seguridad en ADSS.
+- [ ] Rotar la contraseña de `dean-admin` y revocar sus factores de autenticación.
+- [ ] Tratar el NTDS como comprometido: rotar todas las contraseñas del dominio y `krbtgt` dos veces.
+- [ ] Eliminar `AuditReport.jspx`, `iisstart.aspx`, `ntuser.ini`, `cl64.gif`, `cisco-up.7z`, `temp.dit` y `mimikatz.exe`, conservando copia forense.
+- [ ] Comprobar `netsh interface portproxy show all` en todos los servidores.
+- [ ] Bloquear `voltyp.com`; buscarlo, junto con `10.2.30.1`, en logs de DNS, proxy y firewall, e identificar y aislar el host `10.2.30.1`.
+- [ ] Revisar los logs de IIS de `webserver-01` y `server-02` en busca de peticiones a `cl64.gif` y `AuditReport.jspx`.

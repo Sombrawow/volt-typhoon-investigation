@@ -91,7 +91,7 @@ volt-typhoon-investigation/
 ## 👤 Autor
 
 **Javier García**
-🔗 [LinkedIn](https://www.linkedin.com/in/jvrgs) · 📧 jvrgs98@protonmail.com
+🔗 [LinkedIn](https://www.linkedin.com/in/jvrgs) · 📧 jvrgs98@gmail.com
 🎯 Buscando oportunidades como SOC Analyst L1
 
 ---
